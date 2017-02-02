@@ -1,0 +1,81 @@
+---
+title: "celebrity_cheating"
+author: "zhuzhou"
+date: "January 24, 2017"
+output: html_document
+---
+
+```{r}
+library(mice)
+
+# load data
+cheating <- read.csv("/Users/zz/Desktop/cheating.csv",header=T,sep="",stringsAsFactors=F)
+
+# separate birthday to year, month and day
+test <- data.frame(matrix(unlist(strsplit(cheating$出生时间,"\\.")),ncol=3,byrow=T))
+colnames(test) =c("出生年","出生月","出生日")
+data <- cbind(cheating, test)
+data$出生年 <- as.numeric(data$出生年)
+data$出生月 <- as.numeric(data$出生月)
+data$出生日 <- as.numeric(data$出生日)
+
+rownames(data) <- data$姓名
+
+# deal with marry day, only need year
+data$结婚时间 <- floor(data$结婚时间)
+
+# remove company and school and others
+data$姓名 <- NULL
+data$公司 <- NULL
+data$毕业学校 <- NULL
+data$出生时间 <- NULL
+data$配偶名字 <- NULL
+data$出轨人姓名 <- NULL
+data$出轨时间 <- NULL
+data$职业 <- NULL
+
+# test data and train data
+test <- c(29,30,31)
+test_data <- data[test,]
+train_data <- data[-test,]
+
+# missing data
+suppressWarnings(md.pattern(data))
+data$百科出现配偶名字[is.na(data$百科出现配偶名字)] <- 0
+
+complete.marryday.loveday <- train_data[!is.na(train_data$结婚时间) & !is.na(train_data$恋爱时间),c(7,8)]
+avg_love <- mean(complete.marryday.loveday[,1]-complete.marryday.loveday[,2])
+train_data[is.na(train_data$恋爱时间),]$恋爱时间 <- floor(train_data[is.na(train_data$恋爱时间),]$结婚时间 - avg_love)
+test_data[is.na(test_data$恋爱时间),]$恋爱时间 <- floor(test_data[is.na(test_data$恋爱时间),]$结婚时间 - avg_love)
+train_data[is.na(train_data$结婚时间),]$结婚时间 <- floor(train_data[is.na(train_data$结婚时间),]$恋爱时间 + avg_love)
+
+train_data[is.na(train_data$配偶知名度),]$配偶知名度 <- 0
+# if the person don't have the time begin famous, the marry day is it
+train_data[is.na(train_data$出道时间),]$出道时间 <- train_data[is.na(train_data$出道时间),]$结婚时间
+train_data[is.na(train_data$百科出现配偶名字.配偶.),]$百科出现配偶名字.配偶. <- 0
+# birth location, 1 north, 0 south
+train_data$出生省 <- recode(train_data$出生省, "c('北京','天津市','内蒙','新疆','河北','甘肃','宁夏','山西','陕西','青海','山东','河南','安徽','辽宁','吉林','黑龙江')=1;else=0")
+test_data$出生省 <- recode(test_data$出生省, "c('北京','天津市','内蒙','新疆','河北','甘肃','宁夏','山西','陕西','青海','山东','河南','安徽','辽宁','吉林','黑龙江')=1;else=0")
+
+train_data$是否自己工作室 <- recode(train_data$是否自己工作室,"'是'=1;else=0")
+test_data$是否自己工作室 <- recode(test_data$是否自己工作室,"'是'=1;else=0")
+
+train_data$性别 <- recode(train_data$性别,"'男'=1;else=0")
+test_data$性别 <- recode(test_data$性别,"'男'=1;else=0")
+
+train_data$出轨 <- recode(train_data$出轨,"'是'=1;else=0")
+
+
+```
+
+
+
+
+```{r}
+model <- glm(出轨~.,family=binomial,data=train_data)
+pre <- predict(model,newdata=test_data,type="response")
+pre
+```
+
+
+
